@@ -1,7 +1,9 @@
+
 h-opc [![Build status](https://ci.appveyor.com/api/projects/status/oajkgccisoe98gip?svg=true)](https://ci.appveyor.com/project/Hyla-Soft-Inc/h-opc) [![NuGet Status](http://img.shields.io/nuget/v/H.Opc.svg)](https://www.nuget.org/packages/H.Opc) [![Coverage Status](https://coveralls.io/repos/github/jmbeach/h-opc/badge.svg?branch=master)](https://coveralls.io/github/jmbeach/h-opc?branch=master)
 ==============
 
 An Opc Library and a command line to perform OPC operations with ease and transparency among different protocols. Currently supports synchronous operation over UA and DA protocols.
+This fork is a netstandard2.0 port with minor improvements, will see if furthur maintenance will be carried out.
 
 ## Table of Contents
 * [Use](#use)
@@ -22,7 +24,7 @@ An Opc Library and a command line to perform OPC operations with ease and transp
 
 ## Use
 
-A [nuget package](https://www.nuget.org/packages/H.Opc/) is available for the library. To install `H.Opc`, run the following command in the Package Manager Console:
+A [nuget package](https://www.nuget.org/packages/H.Opc/) is available for the OLD library. To install `H.Opc`, run the following command in the Package Manager Console:
 
     PM> Install-Package H.Opc
 

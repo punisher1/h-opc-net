@@ -103,31 +103,31 @@ namespace Hylasoft.Opc.Cli
       {
         case "Int32":
           var val32 = Convert.ToInt32(val);
-          _client.Write<int>(GenerateRelativeTag(tag), val32);
+          _client.Write(GenerateRelativeTag(tag), val32);
           break;
         case "Int16":
           var val16 = Convert.ToInt16(val);
-          _client.Write<short>(GenerateRelativeTag(tag), val16);
+          _client.Write(GenerateRelativeTag(tag), val16);
           break;
         case "UInt16":
           var valuint16 = Convert.ToUInt16(val);
-          _client.Write<ushort>(GenerateRelativeTag(tag), valuint16);
+          _client.Write(GenerateRelativeTag(tag), valuint16);
           break;
         case "UInt32":
           var valuint32 = Convert.ToUInt32(val);
-          _client.Write<uint>(GenerateRelativeTag(tag), valuint32);
+          _client.Write(GenerateRelativeTag(tag), valuint32);
           break;
         case "Boolean":
           var valBool = Convert.ToBoolean(val);
-          _client.Write<bool>(GenerateRelativeTag(tag), valBool);
+          _client.Write(GenerateRelativeTag(tag), valBool);
           break;
         case "Int64":
           var val64 = Convert.ToInt64(val);
-          _client.Write<long>(GenerateRelativeTag(tag), val64);
+          _client.Write(GenerateRelativeTag(tag), val64);
           break;
         case "UInt64":
           var valuint64 = Convert.ToUInt64(val);
-          _client.Write<ulong>(GenerateRelativeTag(tag), valuint64);
+          _client.Write(GenerateRelativeTag(tag), valuint64);
           break;
         default:
           _client.Write<object>(GenerateRelativeTag(tag), val);
