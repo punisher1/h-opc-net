@@ -1,6 +1,4 @@
-﻿using System.Linq;
-using Opc.Ua;
-using System;
+﻿using Opc.Ua;
 using Opc.Ua.Client;
 
 namespace Hylasoft.Opc.Ua
@@ -24,20 +22,15 @@ namespace Hylasoft.Opc.Ua
                 {
                     if (useSecurity)
                     {
-                        if (endpointDescription2.SecurityMode == MessageSecurityMode.None)
-                            continue;
+                        if (endpointDescription2.SecurityMode == MessageSecurityMode.None) continue;
                     }
-                    else if (endpointDescription2.SecurityMode != MessageSecurityMode.None)
-                        continue;
-                    if (endpointDescription1 == null)
-                        endpointDescription1 = endpointDescription2;
-                    if (endpointDescription2.SecurityLevel > endpointDescription1.SecurityLevel)
-                        endpointDescription1 = endpointDescription2;
+                    else if (endpointDescription2.SecurityMode != MessageSecurityMode.None) continue;
+                    endpointDescription1 ??= endpointDescription2;
+                    if (endpointDescription2.SecurityLevel > endpointDescription1.SecurityLevel) endpointDescription1 = endpointDescription2;
                 }
                 if (endpointDescription1 == null)
                 {
-                    if (endpoints.Count > 0)
-                        endpointDescription1 = endpoints[0];
+                    if (endpoints.Count > 0) endpointDescription1 = endpoints[0];
                 }
             }
             var uri = Utils.ParseUri(endpointDescription1.EndpointUrl);
@@ -69,9 +62,7 @@ namespace Hylasoft.Opc.Ua
             {
                 var descriptionCollection = new ReferenceDescriptionCollection();
                 var nodesToBrowse = new BrowseDescriptionCollection { nodeToBrowse };
-                BrowseResultCollection results;
-                DiagnosticInfoCollection diagnosticInfos;
-                session.Browse(null, null, 0U, nodesToBrowse, out results, out diagnosticInfos);
+                session.Browse(null, null, 0U, nodesToBrowse, out BrowseResultCollection results, out DiagnosticInfoCollection diagnosticInfos);
                 ClientBase.ValidateResponse(results, nodesToBrowse);
                 ClientBase.ValidateDiagnosticInfos(diagnosticInfos, nodesToBrowse);
                 while (!StatusCode.IsBad(results[0].StatusCode))
@@ -80,8 +71,10 @@ namespace Hylasoft.Opc.Ua
                         descriptionCollection.Add(results[0].References[index]);
                     if (results[0].References.Count == 0 || results[0].ContinuationPoint == null)
                         return descriptionCollection;
-                    var continuationPoints = new ByteStringCollection();
-                    continuationPoints.Add(results[0].ContinuationPoint);
+                    var continuationPoints = new ByteStringCollection
+                    {
+                        results[0].ContinuationPoint
+                    };
                     session.BrowseNext(null, false, continuationPoints, out results, out diagnosticInfos);
                     ClientBase.ValidateResponse(results, continuationPoints);
                     ClientBase.ValidateDiagnosticInfos(diagnosticInfos, continuationPoints);
@@ -90,11 +83,9 @@ namespace Hylasoft.Opc.Ua
             }
             catch (Exception ex)
             {
-                if (throwOnError)
-                    throw new ServiceResultException(ex, 2147549184U);
+                if (throwOnError) throw new ServiceResultException(ex, 2147549184U);
                 return null;
             }
         }
     }
 }
-

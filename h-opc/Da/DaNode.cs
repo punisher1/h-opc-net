@@ -13,10 +13,6 @@ namespace Hylasoft.Opc.Da
         /// <param name="name">the name of the node</param>
         /// <param name="tag"></param>
         /// <param name="parent">The parent node</param>
-        public DaNode(string name, string tag, Node parent = null)
-          : base(name, parent)
-        {
-            Tag = tag;
-        }
+        public DaNode(string name, string tag, Node parent = null) : base(name, parent) { Tag = tag; }
     }
 }

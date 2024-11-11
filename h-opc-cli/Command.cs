@@ -10,7 +10,7 @@ namespace Hylasoft.Opc.Cli
     public Command(SupportedCommands cmd, IList<string> args = null)
     {
       Cmd = cmd;
-      Args = args ?? new string[0];
+      Args = args ?? [];
     }
 
     public SupportedCommands Cmd { get; private set; }

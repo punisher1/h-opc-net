@@ -8,11 +8,9 @@ namespace Hylasoft.Opc.Ua
     /// <summary>
     /// Client Implementation for UA
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling",
-      Justification = "Doesn't make sense to split this class")]
     public class UaClient : IClient<UaNode>
     {
-        private readonly UaClientOptions _options = new UaClientOptions();
+        private readonly UaClientOptions _options = new();
         private readonly Uri _serverUrl;
         private Session _session;
 
@@ -44,21 +42,12 @@ namespace Hylasoft.Opc.Ua
         /// <summary>
         /// Options to configure the UA client session
         /// </summary>
-        public UaClientOptions Options
-        {
-            get { return _options; }
-        }
+        public UaClientOptions Options => _options;
 
         /// <summary>
         /// OPC Foundation underlying session object
         /// </summary>
-        protected Session Session
-        {
-            get
-            {
-                return _session;
-            }
-        }
+        protected Session Session => _session;
 
         private void PostInitializeSession()
         {
@@ -97,15 +86,13 @@ namespace Hylasoft.Opc.Ua
         public BuiltInType GetDataBuiltinType(string tag)
         {
             var nodesToRead = BuildReadValueIdCollection(tag, Attributes.Value);
-            DataValueCollection results;
-            DiagnosticInfoCollection diag;
             _session.Read(
                 requestHeader: null,
                 maxAge: 0,
                 timestampsToReturn: TimestampsToReturn.Neither,
                 nodesToRead: nodesToRead,
-                results: out results,
-                diagnosticInfos: out diag);
+                results: out DataValueCollection results,
+                diagnosticInfos: out DiagnosticInfoCollection _);
             return results?.Any() == true ? results[0].WrappedValue.TypeInfo.BuiltInType : BuiltInType.Null;
         }
 
@@ -168,7 +155,7 @@ namespace Hylasoft.Opc.Ua
                 NodeId = n.NodeId,
                 AttributeId = attributeId
             };
-            return new ReadValueIdCollection { readValue };
+            return [readValue];
         }
 
         /// <summary>
@@ -181,21 +168,21 @@ namespace Hylasoft.Opc.Ua
         public ReadEvent<T> Read<T>(string tag)
         {
             var nodesToRead = BuildReadValueIdCollection(tag, Attributes.Value);
-            DataValueCollection results;
-            DiagnosticInfoCollection diag;
             _session.Read(
                 requestHeader: null,
                 maxAge: 0,
                 timestampsToReturn: TimestampsToReturn.Neither,
                 nodesToRead: nodesToRead,
-                results: out results,
-                diagnosticInfos: out diag);
+                results: out DataValueCollection results,
+                diagnosticInfos: out DiagnosticInfoCollection _);
             var val = results[0];
 
-            var readEvent = new ReadEvent<T>();
-            readEvent.Value = (T)val.Value;
-            readEvent.SourceTimestamp = val.SourceTimestamp;
-            readEvent.ServerTimestamp = val.ServerTimestamp;
+            var readEvent = new ReadEvent<T>
+            {
+                Value = (T)val.Value,
+                SourceTimestamp = val.SourceTimestamp,
+                ServerTimestamp = val.ServerTimestamp
+            };
             if (StatusCode.IsGood(val.StatusCode)) readEvent.Quality = Quality.Good;
             if (StatusCode.IsBad(val.StatusCode)) readEvent.Quality = Quality.Bad;
             return readEvent;
@@ -221,21 +208,21 @@ namespace Hylasoft.Opc.Ua
                 nodesToRead: nodesToRead,
                 callback: ar =>
                 {
-                    DataValueCollection results;
-                    DiagnosticInfoCollection diag;
                     var response = _session.EndRead(
                   result: ar,
-                  results: out results,
-                  diagnosticInfos: out diag);
+                  results: out DataValueCollection results,
+                  diagnosticInfos: out DiagnosticInfoCollection diag);
 
                     try
                     {
                         CheckReturnValue(response.ServiceResult);
                         var val = results[0];
-                        var readEvent = new ReadEvent<T>();
-                        readEvent.Value = (T)val.Value;
-                        readEvent.SourceTimestamp = val.SourceTimestamp;
-                        readEvent.ServerTimestamp = val.ServerTimestamp;
+                        var readEvent = new ReadEvent<T>
+                        {
+                            Value = (T)val.Value,
+                            SourceTimestamp = val.SourceTimestamp,
+                            ServerTimestamp = val.ServerTimestamp
+                        };
                         if (StatusCode.IsGood(val.StatusCode)) readEvent.Quality = Quality.Good;
                         if (StatusCode.IsBad(val.StatusCode)) readEvent.Quality = Quality.Bad;
                         taskCompletionSource.TrySetResult(readEvent);
@@ -259,7 +246,7 @@ namespace Hylasoft.Opc.Ua
                 AttributeId = attributeId,
                 Value = { Value = dataValue }
             };
-            return new WriteValueCollection { writeValue };
+            return [writeValue];
         }
 
         /// <summary>
@@ -273,13 +260,11 @@ namespace Hylasoft.Opc.Ua
         {
             var nodesToWrite = BuildWriteValueCollection(tag, Attributes.Value, item);
 
-            StatusCodeCollection results;
-            DiagnosticInfoCollection diag;
             _session.Write(
                 requestHeader: null,
                 nodesToWrite: nodesToWrite,
-                results: out results,
-                diagnosticInfos: out diag);
+                results: out StatusCodeCollection results,
+                diagnosticInfos: out DiagnosticInfoCollection _);
 
             CheckReturnValue(results[0]);
         }
@@ -302,12 +287,10 @@ namespace Hylasoft.Opc.Ua
                 nodesToWrite: nodesToWrite,
                 callback: ar =>
                 {
-                    StatusCodeCollection results;
-                    DiagnosticInfoCollection diag;
                     var response = _session.EndWrite(
                   result: ar,
-                  results: out results,
-                  diagnosticInfos: out diag);
+                  results: out StatusCodeCollection results,
+                  diagnosticInfos: out DiagnosticInfoCollection diag);
                     try
                     {
                         CheckReturnValue(response.ServiceResult);
@@ -361,18 +344,21 @@ namespace Hylasoft.Opc.Ua
             {
                 var p = (MonitoredItemNotification)args.NotificationValue;
                 var t = p.Value.WrappedValue.Value;
-                Action unsubscribe = () =>
-          {
-              sub.RemoveItems(sub.MonitoredItems);
-              sub.Delete(true);
-              _session.RemoveSubscription(sub);
-              sub.Dispose();
-          };
 
-                var monitorEvent = new ReadEvent<T>();
-                monitorEvent.Value = (T)t;
-                monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
-                monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
+                void unsubscribe()
+                {
+                    sub.RemoveItems(sub.MonitoredItems);
+                    sub.Delete(true);
+                    _session.RemoveSubscription(sub);
+                    sub.Dispose();
+                }
+
+                var monitorEvent = new ReadEvent<T>
+                {
+                    Value = (T)t,
+                    SourceTimestamp = p.Value.SourceTimestamp,
+                    ServerTimestamp = p.Value.ServerTimestamp
+                };
                 if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
                 if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
                 callback(monitorEvent, unsubscribe);
@@ -387,8 +373,7 @@ namespace Hylasoft.Opc.Ua
         /// <returns>The list of sub-nodes</returns>
         public IEnumerable<UaNode> ExploreFolder(string tag)
         {
-            IList<UaNode> nodes;
-            _folderCache.TryGetValue(tag, out nodes);
+            _folderCache.TryGetValue(tag, out IList<UaNode> nodes);
             if (nodes != null)
                 return nodes;
 
@@ -412,10 +397,7 @@ namespace Hylasoft.Opc.Ua
         /// <summary>
         /// Explores a folder asynchronously
         /// </summary>
-        public async Task<IEnumerable<Common.Node>> ExploreFolderAsync(string tag)
-        {
-            return await Task.Run(() => ExploreFolder(tag));
-        }
+        public async Task<IEnumerable<Common.Node>> ExploreFolderAsync(string tag) => await Task.Run(() => ExploreFolder(tag));
 
         /// <summary>
         /// Finds a node on the Opc Server
@@ -444,10 +426,7 @@ namespace Hylasoft.Opc.Ua
         /// <summary>
         /// Find node asynchronously
         /// </summary>
-        public async Task<Common.Node> FindNodeAsync(string tag)
-        {
-            return await Task.Run(() => FindNode(tag));
-        }
+        public async Task<Common.Node> FindNodeAsync(string tag) => await Task.Run(() => FindNode(tag));
 
         /// <summary>
         /// Gets the root node of the server
@@ -526,7 +505,7 @@ namespace Hylasoft.Opc.Ua
                 ConfigSectionName = _options.ConfigSectionName,
                 ApplicationConfiguration = new ApplicationConfiguration
                 {
-                    ApplicationUri = url.ToString(),
+                    ApplicationUri = _options.ApplicationUri ?? url.ToString(),
                     ApplicationName = _options.ApplicationName,
                     ApplicationType = ApplicationType.Client,
                     CertificateValidator = certificateValidator,
@@ -580,7 +559,7 @@ namespace Hylasoft.Opc.Ua
                 sessionName: _options.SessionName,
                 sessionTimeout: _options.SessionTimeout,
                 identity: GetIdentity(url),
-                preferredLocales: new string[] { });
+                preferredLocales: []);
 
             return session.Result;
         }
@@ -609,23 +588,15 @@ namespace Hylasoft.Opc.Ua
             // remove an array element by converting it to a list
             var folderList = folders.ToList();
             folderList.RemoveAt(0); // remove the first node
-            folders = folderList.ToArray();
+            folders = [.. folderList];
             return folders.Length == 0
               ? found // last node, return it
               : FindNode(string.Join(".", folders), found); // find sub nodes
         }
 
-        private void NotifyServerConnectionLost()
-        {
-            if (ServerConnectionLost != null)
-                ServerConnectionLost(this, EventArgs.Empty);
-        }
+        private void NotifyServerConnectionLost() => ServerConnectionLost?.Invoke(this, EventArgs.Empty);
 
-        private void NotifyServerConnectionRestored()
-        {
-            if (ServerConnectionRestored != null)
-                ServerConnectionRestored(this, EventArgs.Empty);
-        }
+        private void NotifyServerConnectionRestored() => ServerConnectionRestored?.Invoke(this, EventArgs.Empty);
 
         /// <summary>
         /// This event is raised when the connection to the OPC server is lost.

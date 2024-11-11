@@ -40,9 +40,6 @@ namespace Hylasoft.Opc.Common
         /// <summary>
         /// Overrides ToString()
         /// </summary>
-        public override string ToString()
-        {
-            return Tag;
-        }
+        public override string ToString() => Tag;
     }
 }

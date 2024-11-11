@@ -4,18 +4,31 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>12.0</LangVersion>
 		<Authors>XiaoyuvaX</Authors>
-		<Description>A fork from h-opc for netstandard2.0, net core and improvements.</Description>
-		<Copyright>MIT</Copyright>
+		<Description>Opc made simpler, for netstandard2.0+</Description>
+		<Copyright></Copyright>
 		<PackageProjectUrl>https://github.com/xiaoyuvax/h-opc-net</PackageProjectUrl>
-		<Title>h-opc-net</Title>
+		<Title>H.Opc.Net</Title>
 		<AssemblyVersion>1.0.0.1</AssemblyVersion>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>opc;opcua;opcda;net;netcore</PackageTags>
+		<PackageReleaseNotes>Upgrade to netstandard2.0;
+Minor changes and corrections to original OpcClient;</PackageReleaseNotes>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<Version>1.0.0</Version>
 	</PropertyGroup>
+	<ItemGroup>
+	  <None Include="..\LICENSE">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	  </None>
+	  <None Include="..\README.md">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	  </None>
+	</ItemGroup>	
 	<ItemGroup>
 		<PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="1.5.374.126" />
 		<PackageReference Include="Quick.OpcNetApi" Version="2.1.108" />
 		<PackageReference Include="Quick.OpcNetApi.Com" Version="2.1.108" />
-	</ItemGroup>
-	<ItemGroup>
-		<Folder Include="Properties\" />
 	</ItemGroup>
 </Project>

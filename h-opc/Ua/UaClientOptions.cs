@@ -1,5 +1,4 @@
-﻿using System;
-using System.Security.Cryptography.X509Certificates;
+﻿using System.Security.Cryptography.X509Certificates;
 using OpcUa = Opc.Ua;
 
 namespace Hylasoft.Opc.Ua
@@ -18,6 +17,11 @@ namespace Hylasoft.Opc.Ua
         /// Specifies the ApplicationName for the client application.
         /// </summary>
         public string ApplicationName { get; set; }
+
+        /// <summary>
+        /// Specifies the AppplicationUri for certificate validation, if null, connection url is used.
+        /// </summary>
+        public string ApplicationUri { get; set; }
 
         /// <summary>
         /// Should untrusted certificates be silently accepted by the client?

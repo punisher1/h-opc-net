@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Linq;
-using System.Threading;
-using Hylasoft.Opc.Common;
+﻿using Hylasoft.Opc.Common;
 using Opc;
-using Opc.Ua;
+using System.Globalization;
 using Factory = OpcCom.Factory;
 using OpcDa = Opc.Da;
 
@@ -60,7 +54,7 @@ namespace Hylasoft.Opc.Da
             OpcDa.ItemProperty result;
             try
             {
-                var propertyCollection = _server.GetProperties(new[] { item }, new[] { new OpcDa.PropertyID(1) }, false)[0];
+                var propertyCollection = _server.GetProperties([item], [new OpcDa.PropertyID(1)], false)[0];
                 result = propertyCollection[0];
             }
             catch (NullReferenceException)
@@ -73,13 +67,7 @@ namespace Hylasoft.Opc.Da
         /// <summary>
         /// OpcDa underlying server object.
         /// </summary>
-        protected OpcDa.Server Server
-        {
-            get
-            {
-                return _server;
-            }
-        }
+        protected OpcDa.Server Server => _server;
 
         #region interface methods
 
@@ -100,15 +88,7 @@ namespace Hylasoft.Opc.Da
         /// <summary>
         /// Gets the current status of the OPC Client
         /// </summary>
-        public OpcStatus Status
-        {
-            get
-            {
-                if (_server == null || _server.GetStatus().ServerState != OpcDa.serverState.running)
-                    return OpcStatus.NotConnected;
-                return OpcStatus.Connected;
-            }
-        }
+        public OpcStatus Status => _server == null || _server.GetStatus().ServerState != OpcDa.serverState.running ? OpcStatus.NotConnected : OpcStatus.Connected;
 
         /// <summary>
         /// Read a tag
@@ -124,14 +104,15 @@ namespace Hylasoft.Opc.Da
             {
                 throw new OpcException("Server not connected. Cannot read tag.");
             }
-            var result = _server.Read(new[] { item })[0];
-            T casted;
-            TryCastResult(result.Value, out casted);
+            var result = _server.Read([item])[0];
+            TryCastResult(result.Value, out T casted);
 
-            var readEvent = new ReadEvent<T>();
-            readEvent.Value = casted;
-            readEvent.SourceTimestamp = result.Timestamp;
-            readEvent.ServerTimestamp = result.Timestamp;
+            var readEvent = new ReadEvent<T>
+            {
+                Value = casted,
+                SourceTimestamp = result.Timestamp,
+                ServerTimestamp = result.Timestamp
+            };
             if (result.Quality == OpcDa.Quality.Good) readEvent.Quality = Quality.Good;
             if (result.Quality == OpcDa.Quality.Bad) readEvent.Quality = Quality.Bad;
 
@@ -152,7 +133,7 @@ namespace Hylasoft.Opc.Da
                 ItemName = tag,
                 Value = item
             };
-            var result = _server.Write(new[] { itmVal })[0];
+            var result = _server.Write([itmVal])[0];
             CheckResult(result, tag);
         }
 
@@ -171,8 +152,7 @@ namespace Hylasoft.Opc.Da
             catch (InvalidCastException)
             {
                 throw new InvalidCastException(
-                  string.Format(
-                    "Could not monitor tag. Cast failed for type \"{0}\" on the new value \"{1}\" with type \"{2}\". Make sure tag data type matches.",
+                  string.Format("Could not monitor tag. Cast failed for type \"{0}\" on the new value \"{1}\" with type \"{2}\". Make sure tag data type matches.",
                     typeof(T), value, value.GetType()));
             }
         }
@@ -197,22 +177,22 @@ namespace Hylasoft.Opc.Da
 
             // I have to start a new thread here because unsubscribing
             // the subscription during a datachanged event causes a deadlock
-            Action unsubscribe = () => new Thread(o =>
-              _server.CancelSubscription(sub)).Start();
+            void unsubscribe() => new Thread(o => _server.CancelSubscription(sub)).Start();
 
             sub.DataChanged += (handle, requestHandle, values) =>
             {
-                T casted;
-                TryCastResult(values[0].Value, out casted);
-                var monitorEvent = new ReadEvent<T>();
-                monitorEvent.Value = casted;
-                monitorEvent.SourceTimestamp = values[0].Timestamp;
-                monitorEvent.ServerTimestamp = values[0].Timestamp;
+                TryCastResult(values[0].Value, out T casted);
+                var monitorEvent = new ReadEvent<T>
+                {
+                    Value = casted,
+                    SourceTimestamp = values[0].Timestamp,
+                    ServerTimestamp = values[0].Timestamp
+                };
                 if (values[0].Quality == OpcDa.Quality.Good) monitorEvent.Quality = Quality.Good;
                 if (values[0].Quality == OpcDa.Quality.Bad) monitorEvent.Quality = Quality.Bad;
                 callback(monitorEvent, unsubscribe);
             };
-            sub.AddItems(new[] { new OpcDa.Item { ItemName = tag } });
+            sub.AddItems([new OpcDa.Item { ItemName = tag }]);
             sub.SetEnabled(true);
         }
 
@@ -225,15 +205,14 @@ namespace Hylasoft.Opc.Da
         public DaNode FindNode(string tag)
         {
             // if the tag already exists in cache, return it
-            if (_nodesCache.ContainsKey(tag))
-                return _nodesCache[tag];
+            if (_nodesCache.ContainsKey(tag)) return _nodesCache[tag];
 
             // try to find the tag otherwise
             var item = new OpcDa.Item { ItemName = tag };
             OpcDa.ItemValueResult result;
             try
             {
-                result = _server.Read(new[] { item })[0];
+                result = _server.Read([item])[0];
             }
             catch (NullReferenceException)
             {
@@ -259,13 +238,11 @@ namespace Hylasoft.Opc.Da
         public IEnumerable<DaNode> ExploreFolder(string tag)
         {
             var parent = FindNode(tag);
-            OpcDa.BrowsePosition p;
-            var nodes = _server.Browse(new ItemIdentifier(parent.Tag), new OpcDa.BrowseFilters(), out p)
+            var nodes = _server.Browse(new ItemIdentifier(parent.Tag), new OpcDa.BrowseFilters(), out OpcDa.BrowsePosition p)
               .Select(t => new DaNode(t.Name, t.ItemName, parent))
               .ToList();
             //add nodes to cache
-            foreach (var node in nodes)
-                AddNodeToCache(node);
+            foreach (var node in nodes) AddNodeToCache(node);
 
             return nodes;
         }
@@ -275,12 +252,11 @@ namespace Hylasoft.Opc.Da
         /// </summary>
         public void Dispose()
         {
-            if (_server != null)
-                _server.Dispose();
+            _server?.Dispose();
             GC.SuppressFinalize(this);
         }
 
-        #endregion
+        #endregion interface methods
 
         /// <summary>
         /// Adds a node to the cache using the tag as its key
@@ -288,17 +264,13 @@ namespace Hylasoft.Opc.Da
         /// <param name="node">the node to add</param>
         private void AddNodeToCache(DaNode node)
         {
-            if (!_nodesCache.ContainsKey(node.Tag))
-                _nodesCache.Add(node.Tag, node);
+            if (!_nodesCache.ContainsKey(node.Tag)) _nodesCache.Add(node.Tag, node);
         }
 
         private static void CheckResult(IResult result, string tag)
         {
-            if (result == null)
-                throw new OpcException("The server replied with an empty response");
-            if (result.ResultID.ToString() != "S_OK")
-                throw new OpcException(string.Format("Invalid response from the server. (Response Status: {0}, Opc Tag: {1})", result.ResultID, tag));
+            if (result == null) throw new OpcException("The server replied with an empty response");
+            if (result.ResultID.ToString() != "S_OK") throw new OpcException(string.Format("Invalid response from the server. (Response Status: {0}, Opc Tag: {1})", result.ResultID, tag));
         }
     }
 }
-

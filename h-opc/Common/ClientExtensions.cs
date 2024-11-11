@@ -22,11 +22,13 @@ namespace Hylasoft.Opc.Common
             }
             catch (OpcException)
             {
-                var readEvent = new ReadEvent<T>();
-                readEvent.Quality = Quality.Good;
-                readEvent.Value = defaultValue;
-                readEvent.SourceTimestamp = DateTime.Now;
-                readEvent.ServerTimestamp = DateTime.Now;
+                var readEvent = new ReadEvent<T>
+                {
+                    Quality = Quality.Good,
+                    Value = defaultValue,
+                    SourceTimestamp = DateTime.Now,
+                    ServerTimestamp = DateTime.Now
+                };
                 return readEvent;
             }
         }

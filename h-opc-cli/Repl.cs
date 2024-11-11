@@ -190,10 +190,9 @@ namespace Hylasoft.Opc.Cli
       {
         var cmd = CliUtils.SplitArguments(line);
         var args = cmd.Skip(1).ToList();
-        SupportedCommands selectedCommand;
-        if (!Enum.TryParse(cmd[0], true, out selectedCommand))
-          selectedCommand = SupportedCommands.Help;
-        return new Command(selectedCommand, args);
+                if (!Enum.TryParse(cmd[0], true, out SupportedCommands selectedCommand))
+                    selectedCommand = SupportedCommands.Help;
+                return new Command(selectedCommand, args);
       }
       catch (Exception e)
       {
