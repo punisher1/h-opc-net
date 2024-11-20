@@ -1,4 +1,5 @@
 
+
 h-opc-net 
 ==============
 
@@ -14,22 +15,18 @@ This fork is a netstandard2.0 port with minor improvements, will see if furthur 
   * [Monitoring a tag](#monitoring-a-tag)
   * [Go Asynchronous!](#go-asynchronous)
 * [Command line](#command-line)
-* [Build + Contribute](#build--contribute)
-  * [Unit Testing](#unit-testing)
-    * [UA](#ua)
-    * [DA](#da)
 * [Disclaimer](#disclaimer)
 * [Roadmap](#roadmap)
 
 
 ## Use
 
-A [nuget package](https://www.nuget.org/packages/H.Opc/) is available for the OLD library. To install `H.Opc.Net`, run the following command in the Package Manager Console:
+To install [`h-Opc-net`](https://www.nuget.org/packages/h-opc-net/), run the following command in the Package Manager Console:
 
     PM> Install-Package h-opc-net
 
 
-To install the command line interface, head to the [`release section`](https://github.com/hylasoft-usa/h-opc/releases).
+To install the command line interface, head to the [`nuget gallery`](https://www.nuget.org/packages/h-opc-net/).
 
 ## Documentation
 
@@ -140,41 +137,7 @@ h-opc-cli.exe [OpcType] [server-url]
 
 Where `OpcType` is the type of opc to use (e.g: "UA", "DA"). Once the project is running, you can use the internal command to manipulate the variable. To have more information aboute the internal commands, type `help` or `?`
 
-## Build + Contribute
-
-The repository uses [cs-boilerplate](https://github.com/hylasoft-usa/cs-boilerplate). Read the readme of the cs-boilerplate repository to understand how to build, run tasks and commit your work to `master`.
-
-### Unit Testing
-
-+ The unit tests rely on locally running simulator OPC servers. The ones used in this project are [OPC Foundation's Sample Server](https://opcfoundation.org/developer-tools/developer-kits-unified-architecture/sample-applications)
-and [Graybox Simulator](http://gray-box.net/download_graysim.php?lang=en)
-  + You must download OPC Foundation's Sample Server from the OPC Foundation website (link above), but GrayBox can be downloaded using [Chocolatey](https://chocolatey.org/)
-    + `choco install grayboxsimulator`
-  + OPC Foundation's Sample Server requires you register with the website before you can download.
-+ The tests use [NUnit](https://github.com/nunit/nunit). To run them in Visual Studio, install the [NUnit 3 Test Adapter](https://marketplace.visualstudio.com/items?itemName=NUnitDevelopers.NUnit3TestAdapter)
-+ To configure the test project, run the `configure.ps1` script in the root h-opc directory
-
-#### UA
-+ Open OPC Foundation's Sample Client (under Start -> OPC Foundation -> UA x.xx -> Sample Applications -> Opc.Ua.SampleClient.exe)
-  + This will start the server too
-  + Running tests will only work with this program open
-
-#### DA
-+ With Graybox Simulator installed, tests should automatically work
-
-## Disclaimer
-
-The following binaries belong to the [OPC Foundation](https://opcfoundation.org/). You must become a registered user in order to use them:
-
-- `OPC.Ua.Client.dll`
-- `OPC.Ua.Core.dll`
-- `OPC.Ua.Configuration.dll`
-- `OpcComRcw.dll`
-- `OpcNetApi.Com.dll`
-- `OpcNetApi.dll`
-
-You must agree to the terms and condition exposed on the OPC Foundation website. Hyla Soft is not responsible of their usage and cannot be held responsible.
 
 ## Roadmap
 
-- [ ] Add promise-based asynchronous calls
+- [ ] ...
