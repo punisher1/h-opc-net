@@ -10,12 +10,10 @@ namespace Hylasoft.Opc.Ua
     /// </summary>
     public class UaClient : IClient<UaNode>
     {
-        private readonly UaClientOptions _options = new();
-        private readonly Uri _serverUrl;
-        private Session _session;
-
-        private readonly IDictionary<string, UaNode> _nodesCache = new Dictionary<string, UaNode>();
         private readonly IDictionary<string, IList<UaNode>> _folderCache = new Dictionary<string, IList<UaNode>>();
+        private readonly IDictionary<string, UaNode> _nodesCache = new Dictionary<string, UaNode>();
+        private readonly UaClientOptions _options = new();
+        private Session _session;
 
         /// <summary>
         /// Creates a server object
@@ -23,7 +21,7 @@ namespace Hylasoft.Opc.Ua
         /// <param name="serverUrl">the url of the server to connect to</param>
         public UaClient(Uri serverUrl)
         {
-            _serverUrl = serverUrl;
+            ServerUrl = serverUrl;
             Status = OpcStatus.NotConnected;
         }
 
@@ -34,10 +32,20 @@ namespace Hylasoft.Opc.Ua
         /// <param name="options">custom options to use with ua client</param>
         public UaClient(Uri serverUrl, UaClientOptions options)
         {
-            _serverUrl = serverUrl;
+            ServerUrl = serverUrl;
             _options = options;
             Status = OpcStatus.NotConnected;
         }
+
+        /// <summary>
+        /// This event is raised when the connection to the OPC server is lost.
+        /// </summary>
+        public event EventHandler ServerConnectionLost;
+
+        /// <summary>
+        /// This event is raised when the connection to the OPC server is restored.
+        /// </summary>
+        public event EventHandler ServerConnectionRestored;
 
         /// <summary>
         /// Options to configure the UA client session
@@ -45,17 +53,21 @@ namespace Hylasoft.Opc.Ua
         public UaClientOptions Options => _options;
 
         /// <summary>
+        /// Gets the root node of the server
+        /// </summary>
+        public UaNode RootNode { get; private set; }
+
+        public Uri ServerUrl { get; }
+
+        /// <summary>
+        /// Gets the current status of the OPC Client
+        /// </summary>
+        public OpcStatus Status { get; private set; }
+
+        /// <summary>
         /// OPC Foundation underlying session object
         /// </summary>
         protected Session Session => _session;
-
-        private void PostInitializeSession()
-        {
-            var node = _session.NodeCache.Find(ObjectIds.ObjectsFolder);
-            RootNode = new UaNode(string.Empty, node.NodeId.ToString());
-            AddNodeToCache(RootNode);
-            Status = OpcStatus.Connected;
-        }
 
         /// <summary>
         /// Connect the client to the OPC Server
@@ -64,19 +76,88 @@ namespace Hylasoft.Opc.Ua
         {
             if (Status == OpcStatus.Connected)
                 return;
-            _session = InitializeSession(_serverUrl);
+            _session = InitializeSession(ServerUrl);
             _session.KeepAlive += SessionKeepAlive;
             _session.SessionClosing += SessionClosing;
             PostInitializeSession();
         }
 
         /// <summary>
-        /// Gets the datatype of an OPC tag
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
-        /// <param name="tag">Tag to get datatype of</param>
-        /// <returns>System Type</returns>
-        [Obsolete("does not work and not convenient than BuiltInType")]
-        public Type GetDataType(string tag) => Type.GetType("System." + GetDataBuiltinType(tag).ToString());
+        public void Dispose()
+        {
+            if (_session != null)
+            {
+                _session.RemoveSubscriptions(_session.Subscriptions.ToList());
+                _session.Close();
+                _session.Dispose();
+            }
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Explore a folder on the Opc Server
+        /// </summary>
+        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+        /// E.g: the tag `foo.bar` finds the sub nodes of `bar` on the folder `foo`</param>
+        /// <returns>The list of sub-nodes</returns>
+        public IEnumerable<UaNode> ExploreFolder(string tag)
+        {
+            _folderCache.TryGetValue(tag, out IList<UaNode> nodes);
+            if (nodes != null)
+                return nodes;
+
+            var folder = FindNode(tag);
+            nodes = ClientUtils.Browse(_session, folder.NodeId)
+              .GroupBy(n => n.NodeId) //this is to select distinct
+              .Select(n => n.First())
+              .Where(n => n.NodeClass == NodeClass.Variable || n.NodeClass == NodeClass.Object)
+              .Select(n => n.ToHylaNode(folder))
+              .ToList();
+
+            //add nodes to cache
+            if (!_folderCache.ContainsKey(tag))
+                _folderCache.Add(tag, nodes);
+            foreach (var node in nodes)
+                AddNodeToCache(node);
+
+            return nodes;
+        }
+
+        /// <summary>
+        /// Explores a folder asynchronously
+        /// </summary>
+        public async Task<IEnumerable<Common.Node>> ExploreFolderAsync(string tag) => await Task.Run(() => ExploreFolder(tag));
+
+        /// <summary>
+        /// Finds a node on the Opc Server
+        /// </summary>
+        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+        /// E.g: the tag `foo.bar` finds the tag `bar` on the folder `foo`</param>
+        /// <returns>If there is a tag, it returns it, otherwise it throws an </returns>
+        public UaNode FindNode(string tag)
+        {
+            // if the tag already exists in cache, return it
+            if (_nodesCache.ContainsKey(tag))
+                return _nodesCache[tag];
+
+            // try to find the tag otherwise
+            var found = FindNode(tag, RootNode);
+            if (found != null)
+            {
+                AddNodeToCache(found);
+                return found;
+            }
+
+            // throws an exception if not found
+            throw new OpcException(string.Format("The tag \"{0}\" doesn't exist on the Server", tag));
+        }
+
+        /// <summary>
+        /// Find node asynchronously
+        /// </summary>
+        public async Task<Common.Node> FindNodeAsync(string tag) => await Task.Run(() => FindNode(tag));
 
         /// <summary>
         /// Gets the datatype of an OPC tag
@@ -96,66 +177,71 @@ namespace Hylasoft.Opc.Ua
             return results?.Any() == true ? results[0].WrappedValue.TypeInfo.BuiltInType : BuiltInType.Null;
         }
 
-        private void SessionKeepAlive(ISession session, KeepAliveEventArgs e)
-        {
-            if (e.CurrentState != ServerState.Running)
-            {
-                if (Status == OpcStatus.Connected)
-                {
-                    Status = OpcStatus.NotConnected;
-                    NotifyServerConnectionLost();
-                }
-            }
-            else if (e.CurrentState == ServerState.Running)
-            {
-                if (Status == OpcStatus.NotConnected)
-                {
-                    Status = OpcStatus.Connected;
-                    NotifyServerConnectionRestored();
-                }
-            }
-        }
-
-        private void SessionClosing(object sender, EventArgs e)
-        {
-            Status = OpcStatus.NotConnected;
-            NotifyServerConnectionLost();
-        }
+        /// <summary>
+        /// Gets the datatype of an OPC tag
+        /// </summary>
+        /// <param name="tag">Tag to get datatype of</param>
+        /// <returns>System Type</returns>
+        [Obsolete("does not work and not convenient than BuiltInType")]
+        public Type GetDataType(string tag) => Type.GetType("System." + GetDataBuiltinType(tag).ToString());
 
         /// <summary>
-        /// Reconnect the OPC session
+        /// Monitor the specified tag for changes
         /// </summary>
-        public void ReConnect()
+        /// <typeparam name="T">the type of tag to monitor</typeparam>
+        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+        /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
+        /// <param name="callback">the callback to execute when the value is changed.
+        /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback</param>
+        public void Monitor<T>(string tag, Action<ReadEvent<T>, Action> callback)
         {
-            Status = OpcStatus.NotConnected;
-            _session.Reconnect();
-            Status = OpcStatus.Connected;
-        }
+            var node = FindNode(tag);
 
-        /// <summary>
-        /// Create a new OPC session, based on the current session parameters.
-        /// </summary>
-        public void RecreateSession()
-        {
-            Status = OpcStatus.NotConnected;
-            _session = Session.Recreate(_session);
-            PostInitializeSession();
-        }
-
-        /// <summary>
-        /// Gets the current status of the OPC Client
-        /// </summary>
-        public OpcStatus Status { get; private set; }
-
-        private ReadValueIdCollection BuildReadValueIdCollection(string tag, uint attributeId)
-        {
-            var n = FindNode(tag, RootNode);
-            var readValue = new ReadValueId
+            var sub = new Subscription
             {
-                NodeId = n.NodeId,
-                AttributeId = attributeId
+                PublishingInterval = _options.DefaultMonitorInterval,
+                PublishingEnabled = true,
+                LifetimeCount = _options.SubscriptionLifetimeCount,
+                KeepAliveCount = _options.SubscriptionKeepAliveCount,
+                DisplayName = tag,
+                Priority = byte.MaxValue
             };
-            return [readValue];
+
+            var item = new MonitoredItem
+            {
+                StartNodeId = node.NodeId,
+                AttributeId = Attributes.Value,
+                DisplayName = tag,
+                SamplingInterval = _options.DefaultMonitorInterval
+            };
+            sub.AddItem(item);
+            _session.AddSubscription(sub);
+            sub.Create();
+            sub.ApplyChanges();
+
+            item.Notification += (monitoredItem, args) =>
+            {
+                var p = (MonitoredItemNotification)args.NotificationValue;
+                var t = p.Value.WrappedValue.Value;
+
+                void unsubscribe()
+                {
+                    sub.RemoveItems(sub.MonitoredItems);
+                    sub.Delete(true);
+                    _session.RemoveSubscription(sub);
+                    sub.Dispose();
+                }
+
+                var monitorEvent = new ReadEvent<T>
+                {
+                    Value = (T)t,
+                    SourceTimestamp = p.Value.SourceTimestamp,
+                    ServerTimestamp = p.Value.ServerTimestamp
+                };
+                if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
+                if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
+                callback(monitorEvent, unsubscribe);
+            };
         }
 
         /// <summary>
@@ -237,16 +323,24 @@ namespace Hylasoft.Opc.Ua
             return taskCompletionSource.Task;
         }
 
-        private WriteValueCollection BuildWriteValueCollection(string tag, uint attributeId, object dataValue)
+        /// <summary>
+        /// Reconnect the OPC session
+        /// </summary>
+        public void ReConnect()
         {
-            var n = FindNode(tag, RootNode);
-            var writeValue = new WriteValue
-            {
-                NodeId = n.NodeId,
-                AttributeId = attributeId,
-                Value = { Value = dataValue }
-            };
-            return [writeValue];
+            Status = OpcStatus.NotConnected;
+            _session.Reconnect();
+            Status = OpcStatus.Connected;
+        }
+
+        /// <summary>
+        /// Create a new OPC session, based on the current session parameters.
+        /// </summary>
+        public void RecreateSession()
+        {
+            Status = OpcStatus.NotConnected;
+            _session = Session.Recreate(_session);
+            PostInitializeSession();
         }
 
         /// <summary>
@@ -307,144 +401,36 @@ namespace Hylasoft.Opc.Ua
         }
 
         /// <summary>
-        /// Monitor the specified tag for changes
+        /// Adds a node to the cache using the tag as its key
         /// </summary>
-        /// <typeparam name="T">the type of tag to monitor</typeparam>
-        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
-        /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
-        /// <param name="callback">the callback to execute when the value is changed.
-        /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback</param>
-        public void Monitor<T>(string tag, Action<ReadEvent<T>, Action> callback)
+        /// <param name="node">the node to add</param>
+        private void AddNodeToCache(UaNode node)
         {
-            var node = FindNode(tag);
-
-            var sub = new Subscription
-            {
-                PublishingInterval = _options.DefaultMonitorInterval,
-                PublishingEnabled = true,
-                LifetimeCount = _options.SubscriptionLifetimeCount,
-                KeepAliveCount = _options.SubscriptionKeepAliveCount,
-                DisplayName = tag,
-                Priority = byte.MaxValue
-            };
-
-            var item = new MonitoredItem
-            {
-                StartNodeId = node.NodeId,
-                AttributeId = Attributes.Value,
-                DisplayName = tag,
-                SamplingInterval = _options.DefaultMonitorInterval
-            };
-            sub.AddItem(item);
-            _session.AddSubscription(sub);
-            sub.Create();
-            sub.ApplyChanges();
-
-            item.Notification += (monitoredItem, args) =>
-            {
-                var p = (MonitoredItemNotification)args.NotificationValue;
-                var t = p.Value.WrappedValue.Value;
-
-                void unsubscribe()
-                {
-                    sub.RemoveItems(sub.MonitoredItems);
-                    sub.Delete(true);
-                    _session.RemoveSubscription(sub);
-                    sub.Dispose();
-                }
-
-                var monitorEvent = new ReadEvent<T>
-                {
-                    Value = (T)t,
-                    SourceTimestamp = p.Value.SourceTimestamp,
-                    ServerTimestamp = p.Value.ServerTimestamp
-                };
-                if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
-                if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
-                callback(monitorEvent, unsubscribe);
-            };
+            if (!_nodesCache.ContainsKey(node.Tag))
+                _nodesCache.Add(node.Tag, node);
         }
 
-        /// <summary>
-        /// Explore a folder on the Opc Server
-        /// </summary>
-        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
-        /// E.g: the tag `foo.bar` finds the sub nodes of `bar` on the folder `foo`</param>
-        /// <returns>The list of sub-nodes</returns>
-        public IEnumerable<UaNode> ExploreFolder(string tag)
+        private ReadValueIdCollection BuildReadValueIdCollection(string tag, uint attributeId)
         {
-            _folderCache.TryGetValue(tag, out IList<UaNode> nodes);
-            if (nodes != null)
-                return nodes;
-
-            var folder = FindNode(tag);
-            nodes = ClientUtils.Browse(_session, folder.NodeId)
-              .GroupBy(n => n.NodeId) //this is to select distinct
-              .Select(n => n.First())
-              .Where(n => n.NodeClass == NodeClass.Variable || n.NodeClass == NodeClass.Object)
-              .Select(n => n.ToHylaNode(folder))
-              .ToList();
-
-            //add nodes to cache
-            if (!_folderCache.ContainsKey(tag))
-                _folderCache.Add(tag, nodes);
-            foreach (var node in nodes)
-                AddNodeToCache(node);
-
-            return nodes;
+            var n = FindNode(tag, RootNode);
+            var readValue = new ReadValueId
+            {
+                NodeId = n.NodeId,
+                AttributeId = attributeId
+            };
+            return [readValue];
         }
 
-        /// <summary>
-        /// Explores a folder asynchronously
-        /// </summary>
-        public async Task<IEnumerable<Common.Node>> ExploreFolderAsync(string tag) => await Task.Run(() => ExploreFolder(tag));
-
-        /// <summary>
-        /// Finds a node on the Opc Server
-        /// </summary>
-        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
-        /// E.g: the tag `foo.bar` finds the tag `bar` on the folder `foo`</param>
-        /// <returns>If there is a tag, it returns it, otherwise it throws an </returns>
-        public UaNode FindNode(string tag)
+        private WriteValueCollection BuildWriteValueCollection(string tag, uint attributeId, object dataValue)
         {
-            // if the tag already exists in cache, return it
-            if (_nodesCache.ContainsKey(tag))
-                return _nodesCache[tag];
-
-            // try to find the tag otherwise
-            var found = FindNode(tag, RootNode);
-            if (found != null)
+            var n = FindNode(tag, RootNode);
+            var writeValue = new WriteValue
             {
-                AddNodeToCache(found);
-                return found;
-            }
-
-            // throws an exception if not found
-            throw new OpcException(string.Format("The tag \"{0}\" doesn't exist on the Server", tag));
-        }
-
-        /// <summary>
-        /// Find node asynchronously
-        /// </summary>
-        public async Task<Common.Node> FindNodeAsync(string tag) => await Task.Run(() => FindNode(tag));
-
-        /// <summary>
-        /// Gets the root node of the server
-        /// </summary>
-        public UaNode RootNode { get; private set; }
-
-        /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        /// </summary>
-        public void Dispose()
-        {
-            if (_session != null)
-            {
-                _session.RemoveSubscriptions(_session.Subscriptions.ToList());
-                _session.Close();
-                _session.Dispose();
-            }
-            GC.SuppressFinalize(this);
+                NodeId = n.NodeId,
+                AttributeId = attributeId,
+                Value = { Value = dataValue }
+            };
+            return [writeValue];
         }
 
         private void CheckReturnValue(StatusCode status)
@@ -454,13 +440,33 @@ namespace Hylasoft.Opc.Ua
         }
 
         /// <summary>
-        /// Adds a node to the cache using the tag as its key
+        /// Finds a node starting from the specified node as the root folder
         /// </summary>
-        /// <param name="node">the node to add</param>
-        private void AddNodeToCache(UaNode node)
+        /// <param name="tag">the tag to find</param>
+        /// <param name="node">the root node</param>
+        /// <returns></returns>
+        private UaNode FindNode(string tag, UaNode node)
         {
-            if (!_nodesCache.ContainsKey(node.Tag))
-                _nodesCache.Add(node.Tag, node);
+            var folders = tag.Split('.');
+            var head = folders.FirstOrDefault();
+            UaNode found;
+            try
+            {
+                var subNodes = ExploreFolder(node.Tag);
+                found = subNodes.Single(n => n.Name == head);
+            }
+            catch (Exception ex)
+            {
+                throw new OpcException(string.Format("The tag \"{0}\" doesn't exist on folder \"{1}\"", head, node.Tag), ex);
+            }
+
+            // remove an array element by converting it to a list
+            var folderList = folders.ToList();
+            folderList.RemoveAt(0); // remove the first node
+            folders = [.. folderList];
+            return folders.Length == 0
+              ? found // last node, return it
+              : FindNode(string.Join(".", folders), found); // find sub nodes
         }
 
         /// <summary>
@@ -491,12 +497,12 @@ namespace Hylasoft.Opc.Ua
             var certificateValidator = new CertificateValidator();
             certificateValidator.CertificateValidation += (sender, eventArgs) =>
             {
-                if (ServiceResult.IsGood(eventArgs.Error))
+                if (ServiceResult.IsGood(eventArgs.Error)) //注：IGS旧版自己生成的证书秘钥长度仅为1024，OPCFoundation要求2048以上。
                     eventArgs.Accept = true;
                 else if ((eventArgs.Error.StatusCode.Code == StatusCodes.BadCertificateUntrusted) && _options.AutoAcceptUntrustedCertificates)
                     eventArgs.Accept = true;
                 else
-                    throw new OpcException(string.Format("Failed to validate certificate with error code {0}: {1}", eventArgs.Error.Code, eventArgs.Error.AdditionalInfo), eventArgs.Error.StatusCode);
+                    throw new OpcException(string.Format("Failed to validate certificate with error code {0}: {1}:{2}", eventArgs.Error.Code, eventArgs.Error.LocalizedText, eventArgs.Error.AdditionalInfo), eventArgs.Error.StatusCode);
             };
             // Build the application configuration
             var appInstance = new ApplicationInstance
@@ -564,48 +570,42 @@ namespace Hylasoft.Opc.Ua
             return session.Result;
         }
 
-        /// <summary>
-        /// Finds a node starting from the specified node as the root folder
-        /// </summary>
-        /// <param name="tag">the tag to find</param>
-        /// <param name="node">the root node</param>
-        /// <returns></returns>
-        private UaNode FindNode(string tag, UaNode node)
-        {
-            var folders = tag.Split('.');
-            var head = folders.FirstOrDefault();
-            UaNode found;
-            try
-            {
-                var subNodes = ExploreFolder(node.Tag);
-                found = subNodes.Single(n => n.Name == head);
-            }
-            catch (Exception ex)
-            {
-                throw new OpcException(string.Format("The tag \"{0}\" doesn't exist on folder \"{1}\"", head, node.Tag), ex);
-            }
-
-            // remove an array element by converting it to a list
-            var folderList = folders.ToList();
-            folderList.RemoveAt(0); // remove the first node
-            folders = [.. folderList];
-            return folders.Length == 0
-              ? found // last node, return it
-              : FindNode(string.Join(".", folders), found); // find sub nodes
-        }
-
         private void NotifyServerConnectionLost() => ServerConnectionLost?.Invoke(this, EventArgs.Empty);
 
         private void NotifyServerConnectionRestored() => ServerConnectionRestored?.Invoke(this, EventArgs.Empty);
 
-        /// <summary>
-        /// This event is raised when the connection to the OPC server is lost.
-        /// </summary>
-        public event EventHandler ServerConnectionLost;
+        private void PostInitializeSession()
+        {
+            var node = _session.NodeCache.Find(ObjectIds.ObjectsFolder);
+            RootNode = new UaNode(string.Empty, node.NodeId.ToString());
+            AddNodeToCache(RootNode);
+            Status = OpcStatus.Connected;
+        }
 
-        /// <summary>
-        /// This event is raised when the connection to the OPC server is restored.
-        /// </summary>
-        public event EventHandler ServerConnectionRestored;
+        private void SessionClosing(object sender, EventArgs e)
+        {
+            Status = OpcStatus.NotConnected;
+            NotifyServerConnectionLost();
+        }
+
+        private void SessionKeepAlive(ISession session, KeepAliveEventArgs e)
+        {
+            if (e.CurrentState != ServerState.Running)
+            {
+                if (Status == OpcStatus.Connected)
+                {
+                    Status = OpcStatus.NotConnected;
+                    NotifyServerConnectionLost();
+                }
+            }
+            else if (e.CurrentState == ServerState.Running)
+            {
+                if (Status == OpcStatus.NotConnected)
+                {
+                    Status = OpcStatus.Connected;
+                    NotifyServerConnectionRestored();
+                }
+            }
+        }
     }
 }

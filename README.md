@@ -26,7 +26,7 @@ This fork is a netstandard2.0 port with minor improvements, will see if furthur 
 
 A [nuget package](https://www.nuget.org/packages/H.Opc/) is available for the OLD library. To install `H.Opc.Net`, run the following command in the Package Manager Console:
 
-    PM> Install-Package H.Opc.Net
+    PM> Install-Package h-opc-net
 
 
 To install the command line interface, head to the [`release section`](https://github.com/hylasoft-usa/h-opc/releases).
