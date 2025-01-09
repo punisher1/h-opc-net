@@ -2,6 +2,8 @@
 using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
+using System.Collections.Concurrent;
+using System.ComponentModel;
 
 namespace Hylasoft.Opc.Ua
 {
@@ -10,8 +12,8 @@ namespace Hylasoft.Opc.Ua
     /// </summary>
     public class UaClient : IClient<UaNode>
     {
-        private readonly IDictionary<string, IList<UaNode>> _folderCache = new Dictionary<string, IList<UaNode>>();
-        private readonly IDictionary<string, UaNode> _nodesCache = new Dictionary<string, UaNode>();
+        private readonly ConcurrentDictionary<string, IList<UaNode>> _folderCache = new();
+        private readonly ConcurrentDictionary<string, UaNode> _nodesCache = new();
         private readonly UaClientOptions _options = new();
         private Session _session;
 
@@ -47,6 +49,8 @@ namespace Hylasoft.Opc.Ua
         /// </summary>
         public event EventHandler ServerConnectionRestored;
 
+        public int FolderCacheExpireInSecond { get; set; } = 3600;
+        public int NodeCacheExpireInSecond { get; set; } = 3600;
         /// <summary>
         /// Options to configure the UA client session
         /// </summary>
@@ -58,7 +62,6 @@ namespace Hylasoft.Opc.Ua
         public UaNode RootNode { get; private set; }
 
         public Uri ServerUrl { get; }
-
         /// <summary>
         /// Gets the current status of the OPC Client
         /// </summary>
@@ -68,6 +71,40 @@ namespace Hylasoft.Opc.Ua
         /// OPC Foundation underlying session object
         /// </summary>
         protected Session Session => _session;
+
+        private DateTime FolderCachedLastRefreshed { get; set; }
+        public static EndpointDescription SelectEndpoint(Uri discoveryUrl, bool useSecurity)
+        {
+            var configuration = EndpointConfiguration.Create();
+            configuration.OperationTimeout = 5000;
+            EndpointDescription endpointDescription1 = null;
+            using (var discoveryClient = DiscoveryClient.Create(discoveryUrl, configuration))
+            {
+                var endpoints = discoveryClient.GetEndpoints(null);
+                foreach (var endpointDescription2 in endpoints.Where(endpointDescription2 => endpointDescription2.EndpointUrl.StartsWith(discoveryUrl.Scheme)))
+                {
+                    if (useSecurity)
+                    {
+                        if (endpointDescription2.SecurityMode == MessageSecurityMode.None) continue;
+                    }
+                    else if (endpointDescription2.SecurityMode != MessageSecurityMode.None) continue;
+                    endpointDescription1 ??= endpointDescription2;
+                    if (endpointDescription2.SecurityLevel > endpointDescription1.SecurityLevel) endpointDescription1 = endpointDescription2;
+                }
+                if (endpointDescription1 == null)
+                {
+                    if (endpoints.Count > 0) endpointDescription1 = endpoints[0];
+                }
+            }
+            var uri = Utils.ParseUri(endpointDescription1.EndpointUrl);
+            if (uri != null && uri.Scheme == discoveryUrl.Scheme)
+                endpointDescription1.EndpointUrl = new UriBuilder(uri)
+                {
+                    Host = discoveryUrl.DnsSafeHost,
+                    Port = discoveryUrl.Port
+                }.ToString();
+            return endpointDescription1;
+        }
 
         /// <summary>
         /// Connect the client to the OPC Server
@@ -104,12 +141,10 @@ namespace Hylasoft.Opc.Ua
         /// <returns>The list of sub-nodes</returns>
         public IEnumerable<UaNode> ExploreFolder(string tag)
         {
-            _folderCache.TryGetValue(tag, out IList<UaNode> nodes);
-            if (nodes != null)
-                return nodes;
+            if ((DateTime.Now - FolderCachedLastRefreshed).TotalSeconds < FolderCacheExpireInSecond && _folderCache.TryGetValue(tag, out IList<UaNode> nodes)) return nodes;
 
             var folder = FindNode(tag);
-            nodes = ClientUtils.Browse(_session, folder.NodeId)
+            nodes = _session.Browse(folder.NodeId)
               .GroupBy(n => n.NodeId) //this is to select distinct
               .Select(n => n.First())
               .Where(n => n.NodeClass == NodeClass.Variable || n.NodeClass == NodeClass.Object)
@@ -117,10 +152,10 @@ namespace Hylasoft.Opc.Ua
               .ToList();
 
             //add nodes to cache
-            if (!_folderCache.ContainsKey(tag))
-                _folderCache.Add(tag, nodes);
-            foreach (var node in nodes)
-                AddNodeToCache(node);
+            _folderCache.AddOrUpdate(tag, nodes, (t, n) => nodes);
+            FolderCachedLastRefreshed = DateTime.Now;
+
+            foreach (var node in nodes) AddNodeToCache(node);
 
             return nodes;
         }
@@ -139,19 +174,21 @@ namespace Hylasoft.Opc.Ua
         public UaNode FindNode(string tag)
         {
             // if the tag already exists in cache, return it
-            if (_nodesCache.ContainsKey(tag))
-                return _nodesCache[tag];
-
-            // try to find the tag otherwise
-            var found = FindNode(tag, RootNode);
-            if (found != null)
+            if (_nodesCache.TryGetValue(tag, out var node) && (DateTime.Now - node.CreateTime).TotalSeconds < NodeCacheExpireInSecond)
+                return node;
+            else
             {
-                AddNodeToCache(found);
-                return found;
-            }
+                // try to find the tag otherwise
+                var found = FindNode(tag, RootNode);
+                if (found == null)
+                {
+                    _nodesCache.TryRemove(tag, out _);
+                    throw new OpcException(string.Format("The tag \"{0}\" doesn't exist on the Server", tag));
+                }
+                else return AddNodeToCache(found);
 
-            // throws an exception if not found
-            throw new OpcException(string.Format("The tag \"{0}\" doesn't exist on the Server", tag));
+                // throws an exception if not found
+            }
         }
 
         /// <summary>
@@ -234,7 +271,7 @@ namespace Hylasoft.Opc.Ua
 
                 var monitorEvent = new ReadEvent<T>
                 {
-                    Value = (T)t,
+                    Value = (T)Convert.ChangeType(t, typeof(T)),
                     SourceTimestamp = p.Value.SourceTimestamp,
                     ServerTimestamp = p.Value.ServerTimestamp
                 };
@@ -404,11 +441,7 @@ namespace Hylasoft.Opc.Ua
         /// Adds a node to the cache using the tag as its key
         /// </summary>
         /// <param name="node">the node to add</param>
-        private void AddNodeToCache(UaNode node)
-        {
-            if (!_nodesCache.ContainsKey(node.Tag))
-                _nodesCache.Add(node.Tag, node);
-        }
+        private UaNode AddNodeToCache(UaNode node) => _nodesCache.AddOrUpdate(node.Tag, node, (t, n) => node);
 
         private ReadValueIdCollection BuildReadValueIdCollection(string tag, uint attributeId)
         {
@@ -551,7 +584,7 @@ namespace Hylasoft.Opc.Ua
                 appInstance.ApplicationConfiguration.SecurityConfiguration.ApplicationCertificate = new CertificateIdentifier(_options.ApplicationCertificate);
 
             // Find the endpoint to be used
-            var endpoints = ClientUtils.SelectEndpoint(url, _options.UseMessageSecurity);
+            var endpoints = SelectEndpoint(url, _options.UseMessageSecurity);
 
             // Create the OPC session:
             var session = Session.Create(

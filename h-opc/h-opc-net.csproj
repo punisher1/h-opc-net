@@ -8,13 +8,14 @@
 		<Copyright></Copyright>
 		<PackageProjectUrl>https://github.com/xiaoyuvax/h-opc-net</PackageProjectUrl>
 		<Title>H.Opc.Net</Title>
-		<AssemblyVersion>1.0.0.1</AssemblyVersion>
+		<AssemblyVersion>1.0.0.2</AssemblyVersion>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageTags>opc;opcua;opcda;net;netcore</PackageTags>
 		<PackageReleaseNotes>Upgrade to netstandard2.0;
 Minor changes and corrections to original OpcClient;</PackageReleaseNotes>
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
-		<Version>1.0.0</Version>
+		<Version>1.0.0.100</Version>
+		<PackageOutputPath>D:\PUB\Nuget Packages</PackageOutputPath>
 	</PropertyGroup>
 	<ItemGroup>
 	  <None Include="..\LICENSE">

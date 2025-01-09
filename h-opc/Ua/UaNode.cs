@@ -12,18 +12,18 @@ namespace Hylasoft.Opc.Ua
         /// </summary>
         public string NodeId { get; private set; }
 
+        public DateTime CreateTime { get; private set; }
+
         /// <summary>
         /// Instantiates a UaNode class
         /// </summary>
         /// <param name="name">the name of the node</param>
         /// <param name="nodeId">The UA Id of the node</param>
         /// <param name="parent">The parent node</param>
-        internal UaNode(string name, string nodeId, Node parent = null)
-          : base(name, parent)
+        internal UaNode(string name, string nodeId, Node parent = null) : base(name, parent)
         {
             NodeId = nodeId;
+            CreateTime = DateTime.Now;
         }
-
     }
-
 }
