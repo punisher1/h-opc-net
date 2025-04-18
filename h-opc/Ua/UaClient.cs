@@ -3,7 +3,6 @@ using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using System.Collections.Concurrent;
-using System.ComponentModel;
 
 namespace Hylasoft.Opc.Ua
 {
@@ -51,6 +50,7 @@ namespace Hylasoft.Opc.Ua
 
         public int FolderCacheExpireInSecond { get; set; } = 3600;
         public int NodeCacheExpireInSecond { get; set; } = 3600;
+
         /// <summary>
         /// Options to configure the UA client session
         /// </summary>
@@ -62,6 +62,7 @@ namespace Hylasoft.Opc.Ua
         public UaNode RootNode { get; private set; }
 
         public Uri ServerUrl { get; }
+
         /// <summary>
         /// Gets the current status of the OPC Client
         /// </summary>
@@ -73,6 +74,7 @@ namespace Hylasoft.Opc.Ua
         protected Session Session => _session;
 
         private DateTime FolderCachedLastRefreshed { get; set; }
+
         public static EndpointDescription SelectEndpoint(Uri discoveryUrl, bool useSecurity)
         {
             var configuration = EndpointConfiguration.Create();
@@ -211,7 +213,7 @@ namespace Hylasoft.Opc.Ua
                 nodesToRead: nodesToRead,
                 results: out DataValueCollection results,
                 diagnosticInfos: out DiagnosticInfoCollection _);
-            return results?.Any() == true ? results[0].WrappedValue.TypeInfo.BuiltInType : BuiltInType.Null;
+            return results?[0]?.WrappedValue.TypeInfo == null ? BuiltInType.Null : results[0].WrappedValue.TypeInfo.BuiltInType;
         }
 
         /// <summary>
@@ -230,18 +232,32 @@ namespace Hylasoft.Opc.Ua
         /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
         /// <param name="callback">the callback to execute when the value is changed.
         /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback</param>
-        public void Monitor<T>(string tag, Action<ReadEvent<T>, Action> callback)
+        public void Monitor<T>(string tag, Action<ReadEvent<T>, Action> callback) => Monitor(tag, callback);
+
+        /// <summary>
+        /// Monitor the specified tag for changes
+        /// </summary>
+        /// <typeparam name="T">the type of tag to monitor</typeparam>
+        /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+        /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
+        /// <param name="callback">the callback to execute when the value is changed.
+        /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback</param>        ///
+        /// <param name="monitorInterval"></param>
+        /// <param name="subscriptionLifetimeCount"></param>
+        /// <param name="subscriptionKeepAliveCount"></param>
+        public void Monitor<T>(string tag, Action<ReadEvent<T>, Action> callback, int? monitorInterval = null, uint? subscriptionLifetimeCount = null, uint? subscriptionKeepAliveCount = null, uint? maxNotificationsPerPublish = null, byte? priority = null)
         {
             var node = FindNode(tag);
 
             var sub = new Subscription
             {
-                PublishingInterval = _options.DefaultMonitorInterval,
+                PublishingInterval = monitorInterval ?? _options.DefaultMonitorInterval,
                 PublishingEnabled = true,
-                LifetimeCount = _options.SubscriptionLifetimeCount,
-                KeepAliveCount = _options.SubscriptionKeepAliveCount,
+                MaxNotificationsPerPublish = maxNotificationsPerPublish ?? 2400,
+                LifetimeCount = subscriptionLifetimeCount ?? _options.SubscriptionLifetimeCount,
+                KeepAliveCount = subscriptionKeepAliveCount ?? _options.SubscriptionKeepAliveCount,
                 DisplayName = tag,
-                Priority = byte.MaxValue
+                Priority = priority ?? byte.MaxValue
             };
 
             var item = new MonitoredItem

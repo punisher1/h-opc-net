@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFramework>netstandard2.0</TargetFramework>
+		<TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>12.0</LangVersion>
 		<Authors>XiaoyuvaX</Authors>
@@ -14,7 +14,7 @@
 		<PackageReleaseNotes>Upgrade to netstandard2.0;
 Minor changes and corrections to original OpcClient;</PackageReleaseNotes>
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
-		<Version>1.0.0.100</Version>
+		<Version>1.0.0.104</Version>
 		<PackageOutputPath>D:\PUB\Nuget Packages</PackageOutputPath>
 	</PropertyGroup>
 	<ItemGroup>
@@ -28,7 +28,7 @@ Minor changes and corrections to original OpcClient;</PackageReleaseNotes>
 	  </None>
 	</ItemGroup>	
 	<ItemGroup>
-		<PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="1.5.374.126" />
+		<PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="1.5.375.457" />
 		<PackageReference Include="Quick.OpcNetApi" Version="2.1.108" />
 		<PackageReference Include="Quick.OpcNetApi.Com" Version="2.1.108" />
 	</ItemGroup>
