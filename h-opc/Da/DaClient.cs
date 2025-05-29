@@ -119,6 +119,35 @@ namespace Hylasoft.Opc.Da
             return readEvent;
         }
 
+        public List<ReadEvent<T>> ReadMultiple<T>(IEnumerable<string> tags)
+        {
+            if (Status == OpcStatus.NotConnected)
+            {
+                throw new OpcException("Server not connected. Cannot read tags.");
+            }
+
+            var items = tags.Select(tag => new OpcDa.Item { ItemName = tag }).ToArray();
+            var results = _server.Read(items);
+            var readEvents = new List<ReadEvent<T>>();
+
+            foreach (var result in results)
+            {
+                TryCastResult(result.Value, out T casted);
+                var readEvent = new ReadEvent<T>
+                {
+                    Value = casted,
+                    SourceTimestamp = result.Timestamp,
+                    ServerTimestamp = result.Timestamp
+                };
+                if (result.Quality == OpcDa.Quality.Good) readEvent.Quality = Quality.Good;
+                if (result.Quality == OpcDa.Quality.Bad) readEvent.Quality = Quality.Bad;
+
+                readEvents.Add(readEvent);
+            }
+
+            return readEvents;
+        }
+
         /// <summary>
         /// Write a value on the specified opc tag
         /// </summary>
