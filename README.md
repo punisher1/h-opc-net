@@ -1,6 +1,6 @@
 
 
-h-opc-net 
+h-opc-pro
 ==============
 
 An Opc Library and a command line to perform OPC operations with ease and transparency among different protocols. Currently supports synchronous operation over UA and DA protocols.
@@ -21,12 +21,12 @@ This fork is a netstandard2.0 port with minor improvements, will see if furthur 
 
 ## Use
 
-To install [`h-Opc-net`](https://www.nuget.org/packages/h-opc-net/), run the following command in the Package Manager Console:
+To install [`h-Opc-pro`](https://www.nuget.org/packages/h-opc-pro/), run the following command in the Package Manager Console:
 
-    PM> Install-Package h-opc-net
+    PM> Install-Package h-opc-pro
 
 
-To install the command line interface, head to the [`nuget gallery`](https://www.nuget.org/packages/h-opc-net/).
+To install the command line interface, head to the [`nuget gallery`](https://www.nuget.org/packages/h-opc-pro/).
 
 ## Documentation
 
@@ -92,6 +92,13 @@ var myInt = client.Read<int>("path.to.num").Value;
 ````
 
 The example above will read a string from the tags `string` and `num` in the folder `path.to`
+
+### Read many nodes
+
+```cs
+List<ReadEvent<string>> stringItems = client.ReadMultiple<string>("path.to.string");
+List<ReadEvent<int>> intItems = client.ReadMultiple<int>("path.to.num");
+```
 
 #### Writing to a node
 
