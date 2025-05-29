@@ -1,5 +1,5 @@
 {
-  "name": "h-opc",
+  "name": "h-opc-pro",
   "version": "0.9.3",
   "devDependencies": {
     "grunt": "^0.4.5",
@@ -21,12 +21,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hylasoft-usa/h-opc"
+    "url": "https://github.com/punisher1/h-opc-pro"
   },
-  "author": "Giacomo Tagliabue",
+  "author": "iori",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/hylasoft-usa/h-opc/issues"
+    "url": "https://github.com/punisher1/h-opc-pro/issues"
   },
-  "homepage": "https://github.com/hylasoft-usa/h-opc"
+  "homepage": "https://github.com/punisher1/h-opc-pro"
 }

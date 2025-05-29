@@ -197,3 +197,5 @@ opencoverCoverage.xml
 results.xml
 
 package-lock.json
+
+h-opc/set-apikey.ps1

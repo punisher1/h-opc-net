@@ -3,19 +3,19 @@
 		<TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>12.0</LangVersion>
-		<Authors>XiaoyuvaX</Authors>
+		<Authors>iori</Authors>
 		<Description>Opc made simpler, for netstandard2.0+</Description>
 		<Copyright></Copyright>
-		<PackageProjectUrl>https://github.com/xiaoyuvax/h-opc-net</PackageProjectUrl>
-		<Title>H.Opc.Net</Title>
-		<AssemblyVersion>1.0.0.2</AssemblyVersion>
+		<PackageProjectUrl>https://github.com/punisher1/h-opc-pro</PackageProjectUrl>
+		<Title>H.Opc.Pro</Title>
+		<AssemblyVersion>1.0.0</AssemblyVersion>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageTags>opc;opcua;opcda;net;netcore</PackageTags>
 		<PackageReleaseNotes>Upgrade to netstandard2.0;
 Minor changes and corrections to original OpcClient;</PackageReleaseNotes>
 		<PackageLicenseFile>LICENSE</PackageLicenseFile>
-		<Version>1.0.0.104</Version>
-		<PackageOutputPath>D:\PUB\Nuget Packages</PackageOutputPath>
+		<Version>1.0.0</Version>
+		<PackageOutputPath>../publish</PackageOutputPath>
 	</PropertyGroup>
 	<ItemGroup>
 	  <None Include="..\LICENSE">
